@@ -21,14 +21,16 @@ module StaticMap
     # size String     - in pixels of the image. 500x500
     # sensor Boolean  - autodetect user location
     # markers Array of Hashes - location of pins on map. Requires a location address or lat/long coordinates
+    # styles Array of Hashes - see https://developers.google.com/maps/documentation/javascript/reference#MapTypeStyle
     # maptype String  - type of map (satellite, road, hybrid, terrain)
     # path String     - path to write file to when #save is called
     # alt String      - alt text if using image tag
     # title String    - title text if using image tag
-    attr_accessor :center, :zoom, :size, :sensor, :markers, :maptype, :path, :alt, :title
+    attr_accessor :center, :zoom, :size, :sensor, :markers, :styles, :maptype, :path, :alt, :title
 
     def initialize(options={})
       @markers  = options[:markers] || []
+      @styles   = options[:styles]  || []
       @size     = options[:size]    || '500x500'
       @sensor   = options[:sensor]  || true
       @zoom     = options[:zoom]    || 1
@@ -59,6 +61,7 @@ module StaticMap
       end.join("&")
 
       x += "&#{marker_params}" if @markers.any?
+      x += "&#{style_params}" if @styles.any?
       x
     end
 
@@ -69,6 +72,22 @@ module StaticMap
         str << [CGI.escape("label:#{marker[:label]}")] if marker[:label]
         str << [CGI.escape("#{marker[:location]}")] if marker[:location]
         str << ["#{marker[:latitude]},#{marker[:longitude]}"] if marker[:latitude] && marker[:longitude]
+        str.map{|v| v }.join("%7C") # %7C is | character
+      end.join("&").gsub(/\=\%7C/i, '=')
+    end
+
+    def style_params
+      @styles.map do |style|
+        style.symbolize_keys!
+        str = ["style="]
+        str << [CGI.escape("feature:#{style[:featureType]}")] if style[:featureType]
+        str << [CGI.escape("element:#{style[:elementType]}")] if style[:elementType]
+        style[:stylers].each_pair do |key,val|
+          if /^#([a-fA-F0-9]{6})$/ =~ val.to_s
+            val = val.sub /#([a-fA-F0-9]{6})/, '0x\1'
+          end
+          str << [CGI.escape("#{key}:#{val}")]
+        end
         str.map{|v| v }.join("%7C") # %7C is | character
       end.join("&").gsub(/\=\%7C/i, '=')
     end
